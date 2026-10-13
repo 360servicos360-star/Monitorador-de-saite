@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Vagas</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #121212; color: #fff; padding: 20px; text-align: center; }
+        input, button { width: 100%; padding: 12px; margin: 10px 0; font-size: 16px; border-radius: 5px; border: none; }
+        input { background: #222; color: #fff; border: 1px solid #444; }
+        button { background: #00c853; color: #fff; font-weight: bold; cursor: pointer; }
+        button.stop { background: #d50000; }
+        #status { font-size: 18px; margin-top: 20px; padding: 15px; border-radius: 5px; background: #1e1e1e; }
+    </style>
+</head>
+<body>
+
+    <h2>Monitor de Vagas Automático</h2>
+    
+    <input type="text" id="urlTarget" placeholder="Cole o link do site do visto aqui">
+    <input type="text" id="keyword" placeholder="Palavra que some quando abrir (ex: Indisponível)" value="Indisponível">
+    
+    <button id="btnToggle" onclick="toggleMonitor()">Iniciar Monitoramento</button>
+    
+    <div id="status">Estado: Parado</div>
+
+    <script>
+        let timer = null;
+        let isRunning = false;
+
+        function playAlarm() {
+            let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            let oscillator = audioCtx.createOscillator();
+            let gainNode = audioCtx.createGain();
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.value = 800;
+            gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            oscillator.start();
+            setTimeout(() => { oscillator.stop(); }, 1500);
+        }
+
+        function checkSite() {
+            let url = document.getElementById('urlTarget').value;
+            let keyword = document.getElementById('keyword').value;
+            let statusDiv = document.getElementById('status');
+
+            if (!url) {
+                statusDiv.innerText = "Por favor, insira um link válido.";
+                stopMonitor();
+                return;
+            }
+
+            statusDiv.innerText = "A verificar o site...";
+
+            let proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(url);
+
+            fetch(proxyUrl)
+                .then(response => response.json())
+                .then(data => {
+                    if (!isRunning) return;
+                    let htmlContent = data.contents;
+                    
+                    if (!htmlContent.includes(keyword)) {
+                        statusDiv.innerHTML = "<strong>ATENÇÃO: A PALAVRA SUMIU! AS VAGAS PODEM ESTAR ABERTAS!</strong>";
+                        playAlarm();
+                    } else {
+                        statusDiv.innerText = "Ainda sem vagas detetadas. A verificar novamente em breve...";
+                    }
+                })
+                .catch(error => {
+                    if (!isRunning) return;
+                    statusDiv.innerText = "Erro ao aceder ao site. A tentar novamente...";
+                });
+        }
+
+        function toggleMonitor() {
+            let btn = document.getElementById('btnToggle');
+            if (!isRunning) {
+                isRunning = true;
+                btn.innerText = "Parar Monitoramento";
+                btn.className = "stop";
+                checkSite();
+                timer = setInterval(checkSite, 30000); // Verifica a cada 30 segundos
+            } else {
+                stopMonitor();
+            }
+        }
+
+        function stopMonitor() {
+            isRunning = false;
+            clearInterval(timer);
+            let btn = document.getElementById('btnToggle');
+            btn.innerText = "Iniciar Monitoramento";
+            btn.className = "";
+            document.getElementById('status').innerText = "Estado: Parado";
+        }
+    </script>
+</body>
+</html>
